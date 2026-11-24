@@ -1,95 +1,75 @@
 # 04 — LangGraph Core Concepts
-*(Agentic AI playlist, Video 4: LLM workflows, Graph/Nodes/Edges, State, Reducers, Execution model)*
+*(Agentic AI playlist, Video 4: LLM workflows, Graph/Node/Edge, State, Reducers, Execution model)*
 
-> 📌 Diagrams **Mermaid** me hain (GitHub, VS Code Mermaid preview, Obsidian me render hote hain).
-> Legend: 🟢 hara = start / success, 🟡 peela = decision / loop, 🔴 laal = problem, 🔵 neela = LLM call.
-> 🔧 = extra context jo video me nahi tha, par samajhne me kaam aata hai.
+> 📌 Har concept ka format: **📝 Notes** (likha hua, jaldi padhne ke liye) → **🗺️ Diagram** (dekhne ke liye) → **🧠 Yaad rakho** (ek line).
+> Diagrams Mermaid me hain (GitHub / VS Code preview me render hote hain).
 
 ---
 
-## 0. Video ka bird's-eye view
+## ⚡ TL;DR (30 second me poora video)
 
-```mermaid
-mindmap
-  root((LangGraph Core Concepts))
-    LLM Workflows
-      Workflow kya hai
-      5 common patterns
-        Prompt Chaining
-        Routing
-        Parallelization
-        Orchestrator Worker
-        Evaluator Optimizer
-    Graph Nodes Edges
-      Node = Python function
-      Edge = kab kya chalega
-      UPSC essay example
-    State
-      Shared
-      Mutable
-      TypedDict
-    Reducers
-      Replace
-      Add
-      Merge
-    Execution Model
-      Pregel inspired
-      Define Compile Invoke
-      Message passing
-      Superstep
-```
+| Concept | Ek line me |
+|---|---|
+| **LLM workflow** | Tasks ki series jisme kuch tasks LLM pe depend karte hain |
+| **5 patterns** | Prompt Chaining, Routing, Parallelization, Orchestrator-Worker, Evaluator-Optimizer |
+| **Node** | Ek task. Andar se sirf ek **Python function** |
+| **Edge** | Node ke baad kaun sa node chalega (sequential / parallel / conditional / loop) |
+| **State** | Shared + mutable data jo poore workflow me flow karta hai (**TypedDict**) |
+| **Reducer** | State update ka rule: **replace / add / merge** (har key ka apna) |
+| **Execution** | Define → Compile → Invoke → supersteps (message passing) → Terminate |
 
 ```mermaid
 flowchart LR
-    A["1. LLM Workflows<br/>kaunse patterns"] --> B["2. Graph, Node, Edge<br/>workflow ko graph banana"]
-    B --> C["3. State<br/>data jo flow karta hai"]
-    C --> D["4. Reducers<br/>state update kaise ho"]
-    D --> E["5. Execution Model<br/>andar se kaise chalta hai"]
+    A["Workflow<br/>5 patterns"] --> B["Graph<br/>Nodes + Edges"] --> C["State<br/>TypedDict"] --> D["Reducers<br/>replace / add / merge"] --> E["Execution<br/>compile, invoke, supersteps"]
 ```
 
 ---
 
-## 1. Quick recap: LangGraph kya hai
+## 1. Recap: LangGraph kya hai
 
-> LangGraph = **orchestration framework** jo intelligent, stateful, multi-step LLM workflows banane deta hai.
+### 📝 Notes
+- LangGraph = **orchestration framework**, jo **intelligent, stateful, multi-step LLM workflows** banata hai.
+- Kaam: tumhare LLM workflow ko ek **graph** me convert karta hai.
+  - Har **node** = workflow ka ek task (LLM call, tool call, ya decision making).
+  - Har **edge** = ek task ke baad agla task kaunsa.
+- Graph banane ke baad: **pehle node ko input do, graph trigger karo**, baaki nodes sahi order me apne aap chalte hain.
+- Graph ke upar ke extra features:
 
+| Feature | Matlab |
+|---|---|
+| Parallel execution | Ek node ke baad kai nodes ek saath |
+| Loops | Peeche wale node pe wapas jana (cycles) |
+| Branching | Condition ke hisaab se alag raasta |
+| Memory | Tasks aur conversation record karna |
+| Resumability | Breakdown ke baad wahin se resume |
+
+### 🗺️ Diagram
 ```mermaid
 flowchart LR
-    W["LLM workflow<br/>(tum dete ho)"] --> LG["LangGraph"] --> G["Graph<br/>node = task<br/>edge = kaunsa task agla"]
-    G --> T["Input do,<br/>graph trigger karo"] --> X["Nodes sahi order me<br/>apne aap chalte hain"] --> D["Workflow complete"]
+    W["LLM workflow"] --> LG["LangGraph"] --> G["Graph"]
+    G --> F1["Parallel"]
+    G --> F2["Loops"]
+    G --> F3["Branching"]
+    G --> F4["Memory"]
+    G --> F5["Resumability"]
 ```
 
-**Graph ke saath extra features:**
-
-```mermaid
-flowchart TD
-    CORE["LangGraph features"] --> F1["Parallel execution<br/>ek node ke baad kai nodes saath me"]
-    CORE --> F2["Loops<br/>peeche wale node pe wapas"]
-    CORE --> F3["Branching<br/>condition pe alag raasta"]
-    CORE --> F4["Memory<br/>conversation / tasks record"]
-    CORE --> F5["Resumability<br/>breakdown ke baad wahin se resume"]
-    F1 & F2 & F3 & F4 & F5 --> IDEAL["Agentic + production-grade AI apps ke liye ideal"]
-```
+### 🧠 Yaad rakho
+LangGraph = **workflow ko flowchart (graph) me convert karke chalane wala engine.**
 
 ---
 
 ## 2. LLM Workflows
 
-**Workflow** = tasks ki series jo sahi order me chalti hai, ek goal achieve karne ke liye.
-*(Eg: hiring = JD banao → post karo → shortlist → interview → onboarding)*
+### 📝 Notes
+- **Workflow** = tasks ki series jo **sahi order** me chalti hai, ek **goal** achieve karne ke liye. (Eg: hiring = JD → post → shortlist → interview → onboarding.)
+- **LLM workflow** = wo workflow jisme **kai tasks LLM pe depend** karte hain: prompting, reasoning, tool calling, memory access, decision making.
+- Workflow ka shape: **linear, parallel, branched ya looped** ho sakta hai.
+- Har app ka workflow alag hota hai, par kuch **common patterns** baar-baar milte hain. Ye 5 hain.
 
-**LLM workflow** = aisa workflow jisme **kai tasks LLM pe depend** karte hain (prompting, reasoning, tool calling, memory access, decision making).
+> 🔧 Ye 5 patterns Anthropic ke blog **"Building Effective Agents"** se hain.
 
-```mermaid
-flowchart LR
-    WF["Workflow"] --> Q{"Koi step LLM<br/>use karta hai?"}
-    Q -- Haan --> LW["LLM Workflow"]
-    Q -- Nahi --> NW["Normal workflow"]
-    LW --> SHAPE["Shape: linear, parallel,<br/>branched, ya looped"]
-```
-
-> Har application ka apna workflow hota hai, par kuch **common patterns** baar-baar milte hain. Ye 5 hain:
-
+### 🗺️ Diagram
 ```mermaid
 flowchart TD
     P["5 common LLM workflow patterns"] --> P1["1. Prompt Chaining"]
@@ -99,232 +79,234 @@ flowchart TD
     P --> P5["5. Evaluator-Optimizer"]
 ```
 
-> 🔧 Ye 5 patterns Anthropic ke blog **"Building Effective Agents"** se hain (wahi blog jo Video 3 me workflow vs agent ke liye tha).
+### 🧠 Yaad rakho
+**Workflow** = tasks ki series. **LLM workflow** = jisme kuch tasks LLM karta hai.
 
 ---
 
 ### Pattern 1: Prompt Chaining
 
-LLM ko **kai baar, series me** call karte ho. Complex task ko sub-tasks me todo, aur beech me **check (gate)** laga sakte ho.
+#### 📝 Notes
+- LLM ko **kai baar, series me** call karte ho. Ek ka output agle ka input.
+- **Kab use:** jab ek **complex task ko sub-tasks me todna** ho.
+- Beech me **check (gate)** laga sakte ho ki process sahi chal raha hai ya nahi.
+- **Example:** user topic deta hai → LLM 1 **outline** banata hai → check: **report 5000 words se zyada to nahi** (zyada ho to exit) → LLM 2 **detailed report** likhta hai.
 
-**Example:** topic se detailed report.
-
+#### 🗺️ Diagram
 ```mermaid
 flowchart LR
-    T["Topic"] --> L1["LLM 1<br/>outline banao"]
-    L1 --> G{"Gate check:<br/>report 5000 words<br/>se zyada to nahi?"}
-    G -- Fail --> EX["Exit"]
-    G -- Pass --> L2["LLM 2<br/>outline se detailed report"]
-    L2 --> R["Final report"]
+    T["Topic"] --> L1["LLM 1<br/>outline"] --> G{"5000 words<br/>se zyada?"}
+    G -- "Haan" --> X["Exit"]
+    G -- "Nahi" --> L2["LLM 2<br/>detailed report"] --> R["Report"]
     style L1 fill:#cfe2ff,stroke:#0d6efd,color:#000
     style L2 fill:#cfe2ff,stroke:#0d6efd,color:#000
-    style G fill:#fff3cd,stroke:#e0a800,color:#000
 ```
 
-**Kab:** jab complex task ko sub-tasks me todna ho aur beech me quality checks chahiye.
+#### 🧠 Yaad rakho
+**Seedhi line me LLM calls + beech me gate.**
 
 ---
 
 ### Pattern 2: Routing
 
-Ek **router LLM** task samajhta hai aur decide karta hai ki **kaun** isse handle karega.
+#### 📝 Notes
+- Ek **router LLM** task ko samajhta hai aur **decide karta hai ki kaun execute karega**.
+- Router = **decision maker**: kaunsa LLM is query ko solve karne me sabse capable hai.
+- **Example (customer support bot):** query aayi → router dekhta hai:
+  - **Refund** wali hai → Refund LLM
+  - **Technical doubt** → Tech LLM
+  - **Sales** wali → Sales LLM
 
-**Example:** customer support chatbot.
-
+#### 🗺️ Diagram
 ```mermaid
 flowchart TD
-    Q["Customer query"] --> R{{"Router LLM<br/>query ka type kya hai?"}}
-    R -- "Refund se related" --> A["Refund LLM"]
-    R -- "Technical doubt" --> B["Technical LLM"]
-    R -- "Sales se related" --> C["Sales LLM"]
-    A --> OUT["Reply"]
-    B --> OUT
-    C --> OUT
-    style R fill:#cfe2ff,stroke:#0d6efd,color:#000
+    Q["Customer query"] --> R{{"Router LLM"}}
+    R -- "Refund" --> A["Refund LLM"]
+    R -- "Technical" --> B["Tech LLM"]
+    R -- "Sales" --> C["Sales LLM"]
 ```
 
-Router LLM = **decision maker**, jo batata hai in teeno me se kaun query solve karne me sabse capable hai.
+#### 🧠 Yaad rakho
+**Ek LLM sirf raasta batata hai, kaam doosre karte hain.**
 
 ---
 
 ### Pattern 3: Parallelization
 
-Task ko **independent sub-tasks** me todo, **ek saath (parallel)** chalao, aur results **merge/aggregate** karo.
+#### 📝 Notes
+- Task ko **kai independent sub-tasks** me todo, sabko **ek saath** chalao, phir results **merge** karke final outcome nikalo.
+- Sub-tasks ek doosre pe **depend nahi** karte, isliye parallel chal sakte hain.
+- Sub-tasks ka **nature pehle se fixed** hota hai.
+- **Example (YouTube content moderation):** video live karne se pehle 3 checks ek saath:
+  1. Community guidelines follow ho rahi hain?
+  2. Misinformation to nahi?
+  3. Sexual content to nahi?
+  Teeno pass → **live**. Koi fail → **flag**.
 
-**Example:** YouTube content moderation. Video live karne se pehle 3 checks:
-
+#### 🗺️ Diagram
 ```mermaid
 flowchart TD
-    V["Video publish hua"] --> TR["Transcript generate"]
-    TR --> C1["LLM 1:<br/>Community guidelines follow?"]
-    TR --> C2["LLM 2:<br/>Misinformation to nahi?"]
-    TR --> C3["LLM 3:<br/>Sexual content to nahi?"]
+    TR["Video transcript"] --> C1["LLM 1: guidelines"]
+    TR --> C2["LLM 2: misinformation"]
+    TR --> C3["LLM 3: sexual content"]
     C1 --> AG{{"Aggregator"}}
     C2 --> AG
     C3 --> AG
-    AG -- "Teeno pass" --> LIVE["Video LIVE"]
-    AG -- "Koi fail" --> FLAG["Video FLAG"]
-    style C1 fill:#cfe2ff,stroke:#0d6efd,color:#000
-    style C2 fill:#cfe2ff,stroke:#0d6efd,color:#000
-    style C3 fill:#cfe2ff,stroke:#0d6efd,color:#000
+    AG -- "Teeno pass" --> L["LIVE"]
+    AG -- "Koi fail" --> F["FLAG"]
 ```
 
-Ye teeno checks **ek doosre pe depend nahi karte**, isliye parallel chal sakte hain. Sub-task ke **types pehle se fixed** hain.
+#### 🧠 Yaad rakho
+**Fixed sub-tasks + ek saath + aggregate.**
 
 ---
 
 ### Pattern 4: Orchestrator-Worker
 
-Parallelization jaisa hi (kai sub-tasks parallel), par **sub-tasks pehle se nahi pata**, **runtime pe dynamically** decide hote hain.
+#### 📝 Notes
+- Parallelization jaisa hi (task kai parallel sub-tasks me), par yahan sub-tasks ka **nature pehle se nahi pata**, wo **dynamically** decide hota hai.
+- **Orchestrator LLM** input query dekhta hai aur **har worker LLM ko alag task assign** karta hai.
+- **Example (research assistant):**
+  - Query **scientific / technical** hai → worker ko bolo **Google Scholar** pe search kare.
+  - Query **social / political** hai → worker ko bolo **Google News** pe search kare.
+  - Workers parallel kaam karte hain, end me results **aggregate** hote hain.
 
-**Example:** research assistant. Query ke hisaab se alag jagah search.
-
+#### 🗺️ Diagram
 ```mermaid
 flowchart TD
-    Q["Research query"] --> O{{"Orchestrator LLM<br/>query analyze karta hai<br/>aur workers ko kaam baantta hai"}}
-    O -- "Scientific / technical query" --> W1["Worker LLM:<br/>Google Scholar pe search"]
-    O -- "Social / political query" --> W2["Worker LLM:<br/>Google News pe search"]
-    O -- "Aur jo bhi zaroorat ho" --> W3["Worker LLM:<br/>...dynamic task"]
-    W1 --> AG["Aggregate / synthesize"]
+    Q["Research query"] --> O{{"Orchestrator LLM"}}
+    O -- "Scientific" --> W1["Worker: Google Scholar"]
+    O -- "Political / social" --> W2["Worker: Google News"]
+    W1 --> AG["Aggregate"]
     W2 --> AG
-    W3 --> AG
-    AG --> REP["Research report"]
-    style O fill:#cfe2ff,stroke:#0d6efd,color:#000
+    AG --> R["Research report"]
 ```
 
-#### ⚖️ Parallelization vs Orchestrator-Worker (aksar confuse hota hai)
+#### 🧠 Yaad rakho
+**Sub-tasks input ke hisaab se badalte hain. Manager (orchestrator) har baar naya kaam baantta hai.**
 
-```mermaid
-flowchart TD
-    S{"Kya sub-tasks ka<br/>nature pehle se pata hai?"} -- "Haan, fixed" --> PA["Parallelization<br/>(YouTube moderation: 3 fixed checks)"]
-    S -- "Nahi, input ke hisaab se<br/>runtime pe decide" --> OW["Orchestrator-Worker<br/>(Research assistant)"]
-```
+#### ⚖️ Parallelization vs Orchestrator-Worker
+
+| | Parallelization | Orchestrator-Worker |
+|---|---|---|
+| Sub-tasks pehle se pata? | **Haan, fixed** | **Nahi, runtime pe dynamic** |
+| Example | YouTube: hamesha wahi 3 checks | Research: query ke hisaab se Scholar ya News |
+| Kaun decide karta hai | Developer | Orchestrator LLM |
 
 ---
 
 ### Pattern 5: Evaluator-Optimizer
 
-Aise tasks jo **ek baar me perfect nahi hote** (email, blog, poem, story). Creative kaam me iteration lagta hai, jaise writer draft likhta hai, kami dekhta hai, feedback leke dobara likhta hai.
+#### 📝 Notes
+- Aise tasks jo **ek baar me perfectly nahi hote** (email, blog, poem, story). Creative kaam hai, **iteration lagta hai** (writer draft likhta hai, kami dekhta hai, feedback leke dobara likhta hai).
+- Do LLMs:
+  - **Generator LLM**: solution banata hai.
+  - **Evaluator LLM**: ek **concrete criteria** pe solution ko **accept ya reject** karta hai. Reject karte waqt **feedback** bhi deta hai.
+- Reject hone par Generator feedback leke **naya solution** banata hai. **Loop tab tak** jab tak evaluator satisfy na ho.
+- *(Video me kaha: loops padhane ke baad ye workflow bana ke dikhayenge.)*
 
-Do LLMs: **Generator** (solution banata hai) aur **Evaluator** (criteria pe jaanchta hai).
-
+#### 🗺️ Diagram
 ```mermaid
 flowchart TD
-    T["Task: blog / email likho"] --> GEN["Generator LLM<br/>solution banao"]
-    GEN --> EV{{"Evaluator LLM<br/>criteria ke hisaab se jaancho"}}
-    EV -- "Accept" --> OUT["Final output"]
-    EV -- "Reject + FEEDBACK" --> GEN
-    style GEN fill:#cfe2ff,stroke:#0d6efd,color:#000
-    style EV fill:#fff3cd,stroke:#e0a800,color:#000
+    T["Task"] --> G["Generator LLM<br/>solution"] --> E{{"Evaluator LLM"}}
+    E -- "Accept" --> O["Final output"]
+    E -- "Reject + feedback" --> G
 ```
 
-Ye loop **tab tak** chalta hai jab tak evaluator satisfy na ho jaye. *(Video me kaha: loops padhane ke baad ye workflow bana ke dikhayenge.)*
+#### 🧠 Yaad rakho
+**Generate → evaluate → feedback → dobara generate, jab tak accept na ho.**
 
 ---
 
-### 📋 5 patterns ek nazar me
+### 📋 5 patterns ek table me
 
-| # | Pattern | Kya karta hai | Example |
+| # | Pattern | Kab use | Example |
 |---|---|---|---|
-| 1 | **Prompt Chaining** | LLM calls ki fixed series, beech me gate | Topic → outline → report, word-count check |
-| 2 | **Routing** | Router LLM decide karta hai kaun handle kare | Support query → refund / tech / sales |
-| 3 | **Parallelization** | Fixed independent sub-tasks ek saath, phir aggregate | YouTube content moderation |
-| 4 | **Orchestrator-Worker** | Sub-tasks runtime pe dynamic, parallel, aggregate | Research assistant |
-| 5 | **Evaluator-Optimizer** | Generate → evaluate → feedback → loop | Email / blog draft |
+| 1 | Prompt Chaining | Complex task ko steps me todna | Topic → outline → report |
+| 2 | Routing | Query ke type ke hisaab se alag handler | Support: refund / tech / sales |
+| 3 | Parallelization | Fixed independent checks ek saath | YouTube moderation |
+| 4 | Orchestrator-Worker | Dynamic sub-tasks | Research assistant |
+| 5 | Evaluator-Optimizer | Iteration se quality sudharni | Email / blog draft |
 
 ---
 
-## 3. Graphs, Nodes & Edges
+## 3. Graph, Node & Edge
 
 > Teacher ke mutabik **LangGraph ka sabse important core concept.**
 
-### Worked example: UPSC essay practice website
+### 📝 Notes
+- LangGraph kisi bhi LLM workflow ko **graph** me convert karta hai.
+- **Node** = workflow ka **ek single task**. Andar se **sirf ek Python function**, aur kuch nahi.
+- **Edge** = batata hai ki ek node ke baad **agla kaunsa node** chalega.
+- **Nodes = kya karna hai. Edges = kab / agla kya.**
+- Graph = **Python functions ka set, edges se interconnected.**
 
-Flow: topic generate → user essay likhe → 3 criteria pe evaluate → score /15 → score kaafi hai to congratulate, nahi to feedback + retry ka option.
+**Edges 4 tarah ke ho sakte hain:**
 
-**Step 1: pehle high-level goal ko actionable steps me todo (copy-pen pe):**
+| Type | Matlab |
+|---|---|
+| **Sequential** | Ek ke baad ek |
+| **Parallel** | Ek saath kai nodes |
+| **Conditional** | Condition ke hisaab se branching (is raaste ya us raaste) |
+| **Looping** | Peeche wale node pe wapas |
 
-```mermaid
-flowchart LR
-    S1["1. Topic generate"] --> S2["2. Student ka essay collect"] --> S3["3. Evaluate"] --> S4["4. Results aggregate"] --> S5["5. Feedback do"] --> S6["6. Retry ka option"]
-```
-
-**Step 2: ise LangGraph me graph banao:**
-
-```mermaid
-flowchart TD
-    START([START]) --> GT["generate_topic"]
-    GT --> CE["collect_essay<br/>(student likhta hai)"]
-    CE --> EV["evaluate"]
-    subgraph EVAL["Evaluate: 3 criteria, har ek /5, total /15"]
-        direction LR
-        E1["Clarity of thought"]
-        E2["Depth of analysis"]
-        E3["Language<br/>vocab, grammar, tone"]
-    end
-    EV --> EVAL
-    EVAL --> DEC{"Total score<br/>threshold 10 se upar?"}
-    DEC -- "Haan" --> OK["Congratulate"] --> END1([END])
-    DEC -- "Nahi" --> FB["Feedback do<br/>(teeno criteria pe)"]
-    FB --> RT{"Student dobara<br/>likhna chahta hai?"}
-    RT -- "No" --> END2([END])
-    RT -- "Yes: loop" --> CE
-    style DEC fill:#fff3cd,stroke:#e0a800,color:#000
-    style RT fill:#fff3cd,stroke:#e0a800,color:#000
-```
-
-### Node aur Edge kya hain
-
-| | Kya hai | Kaam |
-|---|---|---|
-| **Node** | Workflow ka **ek single task**. Andar se **sirf ek plain Python function** | **Kya karna hai** |
-| **Edge** | Nodes ke beech ka connection | **Kab / agla kya** chalega (control flow) |
-
-> Graph = **Python functions ka set**, jo **edges** se interconnected hain.
-
-```mermaid
-flowchart LR
-    N["Node"] --> F["= Python function<br/>(isse zyada kuch nahi)"]
-    E["Edge"] --> W["= nodes ke beech control flow"]
-```
-
-### 4 tarah ke Edges
-
+### 🗺️ Diagram: edges ke 4 type
 ```mermaid
 flowchart TD
-    subgraph SEQ["1. Sequential: ek ke baad ek"]
+    subgraph A["Sequential"]
         direction LR
-        s1[A] --> s2[B] --> s3[C]
+        a1[A] --> a2[B] --> a3[C]
     end
-    subgraph PAR["2. Parallel: ek saath kai nodes"]
+    subgraph B["Parallel"]
         direction LR
-        p0[A] --> p1[B]
-        p0 --> p2[C]
-        p0 --> p3[D]
+        b0[A] --> b1[B]
+        b0 --> b2[C]
     end
-    subgraph COND["3. Conditional: branching"]
+    subgraph C["Conditional"]
         direction LR
         c0{A} -- "condition 1" --> c1[B]
         c0 -- "condition 2" --> c2[C]
     end
-    subgraph LOOP["4. Looping: peeche wapas"]
+    subgraph D["Loop"]
         direction LR
-        l1[A] --> l2[B] --> l3{C}
-        l3 -- "dobara" --> l1
+        d1[A] --> d2{B}
+        d2 -- "dobara" --> d1
     end
 ```
 
-Isliye graph structure me sequential, parallel, branching, looping, sab express ho jaata hai.
+### Worked example: UPSC essay practice website
 
-### 🔧 UPSC example ka code (video me conceptual tha, ye extra hai)
+#### 📝 Notes (problem)
+- Website UPSC aspirants ko **essay practice** karwati hai.
+- Flow: **topic generate** → user **essay likhta hai** → essay **3 criteria** pe evaluate → **score /15** → threshold (maan lo **10**) se upar ho to **congratulate**, nahi to **feedback** + dobara likhne ka option.
+- 3 criteria (har ek **/5**, total **/15**):
+  - **Clarity of thought**
+  - **Depth of analysis** (fact check wagairah)
+  - **Language** (vocabulary, grammar, tone)
 
+**Graph banane ka tareeka:**
+1. Pehle high-level goal ko **actionable steps** me todo (copy-pen pe): topic generate, essay collect, evaluate, results aggregate, feedback, retry.
+2. Phir usi flow ko LangGraph me **graph** ki tarah represent karo.
+
+#### 🗺️ Diagram
+```mermaid
+flowchart TD
+    S([START]) --> GT["generate_topic"] --> CE["collect_essay"] --> EV["evaluate<br/>clarity /5, depth /5, language /5"]
+    EV --> D{"Total score<br/>10 se upar?"}
+    D -- "Haan" --> OK["Congratulate"] --> E1([END])
+    D -- "Nahi" --> FB["Feedback do"] --> R{"Dobara likhna<br/>chahta hai?"}
+    R -- "Nahi" --> E2([END])
+    R -- "Haan: loop" --> CE
+```
+
+#### 🔧 Code (extra, video me conceptual tha)
 ```python
 from langgraph.graph import StateGraph, END
 
 graph = StateGraph(EssayState)
 graph.add_node("generate_topic", generate_topic_fn)
 graph.add_node("collect_essay", collect_essay_fn)
-graph.add_node("evaluate", evaluate_fn)        # clarity / depth / language score
+graph.add_node("evaluate", evaluate_fn)
 
 graph.set_entry_point("generate_topic")
 graph.add_edge("generate_topic", "collect_essay")
@@ -337,70 +319,59 @@ def route_after_eval(state) -> str:
 
 graph.add_conditional_edges(
     "evaluate", route_after_eval,
-    {"pass": END, "fail": END, "retry": "collect_essay"}   # retry = loop
+    {"pass": END, "fail": END, "retry": "collect_essay"}
 )
-
 app = graph.compile()
 ```
+
+### 🧠 Yaad rakho
+**Node = Python function (kya). Edge = flow (kab). Ye dono milke sequential, parallel, branching, loop, sab express karte hain.**
 
 ---
 
 ## 4. State
 
-> **State = shared memory jo tumhare workflow me flow karti hai.** Nodes ke beech pass hone wala saara data isme rehta hai.
+### 📝 Notes
+- Koi bhi workflow chalane ke liye kuch **data pieces** chahiye hote hain, aur wo **chalte-chalte badalte** hain. Unhi sabko milakar **State** kehte hain.
+- Definition: **State = shared memory jo tumhare workflow me flow karti hai. Nodes ke beech pass hone wala saara data isme hota hai.**
+- UPSC workflow ka state: `topic`, `essay_text`, `clarity_score`, `depth_score`, `language_score`, `total_score`.
+- Graph banane se **pehle** LangGraph kehta hai: **state define karo** (key-value pairs).
 
-**State kyun?** Koi bhi workflow chalane ke liye kuch **data pieces** chahiye hote hain, jo **over time evolve** hote hain.
+**2 khaasiyat:**
 
-UPSC workflow ka state:
-
-| Key | Kyun chahiye |
+| Khaasiyat | Matlab |
 |---|---|
-| `topic` | Essay ka topic |
-| `essay_text` | Evaluate isi pe hota hai |
-| `clarity_score`, `depth_score`, `language_score` | Teeno criteria ke scores |
-| `total_score` | Isi pe pass / fail decide hota hai |
+| **Shared** | Har node ko poori state ka access |
+| **Mutable** | Koi bhi node state me changes kar sakta hai |
 
-**State kaise evolve karti hai (UPSC example):**
+**Kaise kaam karta hai (har node ke saath):**
+1. Node ko **poori state input** me milti hai.
+2. Node apna kaam karta hai.
+3. Node state me **changes** karta hai.
+4. Wahi **updated state agle node** ko jaati hai.
 
-| State key ↓ / Node → | generate_topic | collect_essay | evaluate | feedback |
-|---|---|---|---|---|
-| `topic` | **"Climate change"** | same | same | same |
-| `essay_text` | "" | **"essay text..."** | same | same |
-| `clarity_score` | 0 | 0 | **4** | 4 |
-| `depth_score` | 0 | 0 | **3** | 3 |
-| `language_score` | 0 | 0 | **5** | 5 |
-| `total_score` | 0 | 0 | **12** | 12 |
+**Code me:** ek **TypedDict** (special dictionary, Python ki class). Pydantic bhi chalta hai, par mostly TypedDict.
 
-### State ki 2 khaasiyat
+### State evolve kaise hoti hai (UPSC)
 
+| Key ↓ / Node → | generate_topic | collect_essay | evaluate |
+|---|---|---|---|
+| `topic` | **"Climate change"** | same | same |
+| `essay_text` | khali | **"essay text..."** | same |
+| `clarity / depth / language` | 0 | 0 | **4 / 3 / 5** |
+| `total_score` | 0 | 0 | **12** |
+
+### 🗺️ Diagram
 ```mermaid
 flowchart TB
-    ST[("STATE<br/>key-value pairs")]
-    N1["Node 1"] <--> ST
-    N2["Node 2"] <--> ST
-    N3["Node 3"] <--> ST
-    ST --- P1["1. SHARED: har node ko poori state ka access"]
-    ST --- P2["2. MUTABLE: koi bhi node state badal sakta hai"]
-    style ST fill:#d4edda,stroke:#28a745,color:#000
+    ST[("STATE<br/>topic, essay_text, scores, total_score")]
+    N1["generate_topic"] <--> ST
+    N2["collect_essay"] <--> ST
+    N3["evaluate"] <--> ST
+    N1 --> N2 --> N3
 ```
 
-### State kaise flow karti hai
-
-```mermaid
-sequenceDiagram
-    participant N1 as Node 1
-    participant S as Shared State
-    participant N2 as Node 2
-    S->>N1: poori state input me
-    N1->>N1: apna kaam karta hai
-    N1->>S: state me changes karta hai
-    S->>N2: updated state agle node ko
-    N2->>N2: apna kaam
-    N2->>S: aur changes
-```
-
-**Kaise banti hai:** Python me ek **TypedDict** (special dictionary / class). Pydantic model bhi chalta hai, par mostly TypedDict.
-
+### 🔧 Code
 ```python
 from typing import TypedDict
 
@@ -413,233 +384,190 @@ class EssayState(TypedDict):
     total_score: float
     wants_retry: bool
 ```
+> Har node poori state leta hai aur **sirf wo fields ka dict return** karta hai jo badalne hain. LangGraph use state me **merge** karta hai.
 
-> 🔧 Har node **poori state input me** leta hai aur **sirf wo fields ka dict return** karta hai jo badalna hai. LangGraph use state me **merge** kar deta hai.
+### 🧠 Yaad rakho
+**State = shared + mutable dictionary (TypedDict) jo evolve hoti rehti hai.**
 
 ---
 
 ## 5. Reducers
 
-> State ki "mutable" property se closely connected.
+### 📝 Notes
+- Reducer state ki **mutable** property se closely connected hai.
+- **Default behavior:** node kisi key ke liye value return kare to LangGraph **purani value ko hata ke naya rakh deta hai (replace)**.
+- **Reducer define karta hai ki nodes ke updates shared state par kaise apply honge: replace, add (append) ya merge.** **Har key ka apna reducer** ho sakta hai.
 
-**Default behavior:** node jo value return kare, LangGraph us key ki purani value ko **overwrite (replace)** kar deta hai.
+**Kab replace theek, kab nahi:**
 
-### Problem 1: Calculator (yahan overwrite theek hai)
+| Example | Replace chalega? | Kyun |
+|---|---|---|
+| Calculator (`result`: 11 → 22) | ✅ Haan | Purana result chahiye nahi |
+| Chatbot (`messages`) | ❌ Nahi | Purane messages chahiye warna LLM bhool jaata hai |
+| UPSC (`essay_text`) agar past essays dekhne hain | ❌ Nahi | Student apna improvement dekhna chahta hai |
 
-State: `first_number`, `second_number`, `result`
+### Example A: Calculator (replace theek)
+1. State: `first_number`, `second_number`, `result`.
+2. Node 1: user ne **5** aur **6** diya.
+3. Node 2: sum, `result = 11`.
+4. Node 3: **2 se multiply**, `result = 22` (**11 replace ho gaya**). Yahan theek hai.
 
 ```mermaid
 flowchart LR
-    N1["Node 1<br/>user input"] -->|"first=5, second=6"| N2["Node 2<br/>sum"]
-    N2 -->|"result = 11"| N3["Node 3<br/>x 2"]
-    N3 -->|"result = 22<br/>(11 overwrite hua)"| N4["Print result"]
-    style N3 fill:#d4edda,stroke:#28a745,color:#000
+    N1["Node 1<br/>first=5, second=6"] --> N2["Node 2: sum<br/>result = 11"] --> N3["Node 3: x2<br/>result = 22"]
 ```
-Yahan result ko replace karna **sahi** hai.
 
-### Problem 2: Chatbot (yahan overwrite BREAK karta hai)
-
-State me sirf `messages` key hai.
+### Example B: Chatbot (replace BREAK karta hai)
+State me sirf `messages`. Human aur LLM loop me baat kar rahe hain.
+1. Human: **"Hi, my name is Nitish"** → `messages` me ye.
+2. LLM: **"Hi, how can I help you?"** → **replace**, naam wala message **gaya**.
+3. Human: **"Can you tell me my name?"** → phir replace.
+4. LLM ko **naam kabhi pata nahi chalega**, kyunki wo message state se **erase** ho chuka.
 
 ```mermaid
 sequenceDiagram
-    participant H as Human node
+    participant H as Human
     participant S as State: messages
-    participant L as LLM node
-    H->>S: "Hi, my name is Nitish"
-    Note over S: messages = Hi, my name is Nitish
-    S->>L: state
-    L->>S: "Hi, how can I help you?"
-    Note over S: OVERWRITE: naam wala message gaya!
-    H->>S: "Can you tell me my name?"
-    Note over S: messages = Can you tell me my name?
-    S->>L: state
-    Note over L: Naam pata hi nahi. Message erase ho chuka hai
+    participant L as LLM
+    H->>S: Hi, my name is Nitish
+    L->>S: Hi, how can I help you?
+    Note over S: Replace: naam wala message gaya
+    H->>S: Can you tell me my name?
+    Note over L: Naam pata hi nahi
 ```
 
-**Fix:** replace ki jagah **har naya message list me ADD (append)** karo.
-
-```mermaid
-flowchart TD
-    subgraph BAD["❌ Default: Replace"]
-        direction LR
-        b1["[Hi, my name is Nitish]"] --> b2["[Hi, how can I help you?]"] --> b3["[Can you tell me my name?]"]
-    end
-    subgraph GOOD["✅ Reducer: Append"]
-        direction LR
-        g1["[Hi, my name is Nitish]"] --> g2["[Hi my name is Nitish,<br/>Hi how can I help you?]"] --> g3["[... teeno messages ...]"]
-    end
-    style BAD fill:#f8d7da,stroke:#dc3545,color:#000
-    style GOOD fill:#d4edda,stroke:#28a745,color:#000
-```
-
-### Problem 3: UPSC example (past essays dekhne hain)
-
-Student apne **pehle, dusre, teesre essay** dekhna chahta hai taaki apna improvement dekhe. Replace karoge to purane gayab. **Add reducer** lagao to sab preserve.
+**Fix:** replace ki jagah **har naya message list me ADD** karo.
 
 ```mermaid
 flowchart LR
-    subgraph R["Replace"]
+    subgraph BAD["❌ Replace"]
         direction LR
-        r1["Essay 1"] -. "gaya" .-> r2["Essay 2"] -. "gaya" .-> r3["Essay 3 (sirf ye bacha)"]
+        b1["[msg 1]"] --> b2["[msg 2]"] --> b3["[msg 3]"]
     end
-    subgraph A["Add reducer"]
+    subgraph GOOD["✅ Add reducer"]
         direction LR
-        a1["Essay 1"] --> a2["Essay 1, 2"] --> a3["Essay 1, 2, 3 (sab safe)"]
+        g1["[msg 1]"] --> g2["[msg 1, msg 2]"] --> g3["[msg 1, msg 2, msg 3]"]
     end
 ```
 
-### Reducer ki definition
+### Example C: UPSC (past essays)
+Student ne **3 baar essay** likha. Replace karoge to sirf teesra bachega. **Add reducer** lagao to **pehla, doosra, teesra sab** safe, aur student apna **improvement** dekh sakta hai.
 
-> **Reducer** define karta hai ki nodes ke updates **shared state par kaise apply** honge. **Har key ka apna reducer** ho sakta hai.
-
-```mermaid
-flowchart TD
-    R(("Reducer")) --> A["Replace<br/>naya purane ko hata de (default)"]
-    R --> B["Add / Append<br/>naya purane ke saath jud jaye"]
-    R --> C["Merge<br/>dono ko combine karo"]
-    K["Har state key<br/>ka apna reducer"] --> R
-```
-
-### 🔧 Code (video me conceptual tha, syntax extra hai)
-
+### 🔧 Code (extra)
 ```python
 from typing import TypedDict, Annotated
 from operator import add
 from langgraph.graph.message import add_messages   # chat ke liye built-in reducer
 
 class ChatState(TypedDict):
-    messages: Annotated[list, add_messages]   # append hota hai, overwrite nahi
+    messages: Annotated[list, add_messages]   # add hota hai, replace nahi
 
-class EssayHistoryState(TypedDict):
-    essay_attempts: Annotated[list, add]      # generic append reducer
-    total_score: float                        # annotation nahi = default overwrite
+class EssayState(TypedDict):
+    essay_attempts: Annotated[list, add]      # generic add reducer
+    total_score: float                        # annotation nahi = default replace
 ```
+> `add_messages` plain list-append se smart hai: message **ID se de-duplication** aur existing message **update** bhi handle karta hai.
 
-> `add_messages` plain append se smart hai: message ID se **de-duplication** aur **existing message update** bhi handle karta hai. Chatbot ke liye yehi use hota hai.
-
-**Rule of thumb:** reducers sabse zyada **parallel workflows** me kaam aate hain, jahan kai nodes **ek hi key ko ek saath** update karte hain aur combine karne ka tareeka chahiye. *(Parallel workflow banate waqt coding me dikhaya jayega.)*
+### 🧠 Yaad rakho
+- **Reducer = update ka rule: replace / add / merge.** Har key ka apna.
+- **Parallel workflows** me sabse zyada kaam aata hai (kai nodes ek hi key ko ek saath update karte hain). Coding wale video me dikhayenge.
 
 ---
 
 ## 6. Execution Model
 
-LangGraph ka execution model **Google Pregel** se inspired hai (Google ka large-scale graph processing system).
+### 📝 Notes
+- LangGraph ka execution model **Google Pregel** se inspired hai (Google ka bade scale ka graph-processing system).
+- Do phase: **(1) Graph Definition + Compile**, **(2) Execution**.
 
-```mermaid
-flowchart LR
-    P1["Phase 1:<br/>Graph Definition<br/>+ Compilation"] --> P2["Phase 2:<br/>Execution"]
-```
-
-### Phase 1: Definition + Compile
-
-```mermaid
-flowchart TD
-    D["1. DEFINE graph"] --> D1["Nodes define"]
-    D --> D2["Edges define"]
-    D --> D3["State define<br/>(TypedDict)"]
-    D1 & D2 & D3 --> C["2. COMPILE<br/>graph.compile()"]
-    C --> CK{"Structure logically<br/>sahi hai?"}
-    CK -- "Orphan node mila<br/>(kisi se connected nahi)" --> ERR["Error"]
-    CK -- "Sab theek" --> RDY["Graph ready"]
-    style ERR fill:#f8d7da,stroke:#dc3545,color:#000
-    style RDY fill:#d4edda,stroke:#28a745,color:#000
-```
-
-### Phase 2: Execution
+#### Phase 1: Definition + Compile
+1. **Define:** 3 cheezein banao: **nodes**, **edges**, **state** (TypedDict).
+2. **Compile:** `graph.compile()` check karta hai ki **structure logically sahi hai**. Jaise koi node aisa to nahi jo kisi se connected hi nahi. Aise node ko **orphan node** kehte hain (compile pe pakda jaata hai).
 
 ```mermaid
 flowchart TD
-    I["INVOCATION<br/>app.invoke(initial_state)"] --> A1["First node ACTIVATE<br/>(uska Python function call hota hai)"]
-    A1 --> U1["Node kaam karke state pe<br/>PARTIAL UPDATE karta hai"]
-    U1 --> MP["MESSAGE PASSING<br/>updated state edge se agle node ko"]
-    MP --> A2["Agla node ACTIVATE"]
-    A2 --> U2["Partial update"]
-    U2 --> MP2["Message passing"]
-    MP2 --> MORE{"Koi active node ya<br/>edge pe message baaki hai?"}
-    MORE -- "Haan" --> A2
-    MORE -- "Nahi" --> TERM["TERMINATION<br/>workflow stop"]
-    style TERM fill:#d4edda,stroke:#28a745,color:#000
+    D["Nodes + Edges + State define"] --> C["compile()"] --> Q{"Orphan node?"}
+    Q -- "Haan" --> E["Error"]
+    Q -- "Nahi" --> R["Graph ready"]
 ```
 
-### Superstep: "step" nahi, "superstep" kyun?
-
-Ek **round** me **ek se zyada nodes parallel** chal sakte hain, to isse sirf "step" kehna sahi nahi.
-
-```mermaid
-flowchart LR
-    subgraph SS1["Superstep 1"]
-        A["Node A"]
-    end
-    subgraph SS2["Superstep 2 (3 parallel nodes)"]
-        direction TB
-        B1["Node B1"]
-        B2["Node B2"]
-        B3["Node B3"]
-    end
-    subgraph SS3["Superstep 3"]
-        C["Node C"]
-    end
-    A -- "message passing" --> B1 & B2 & B3
-    B1 & B2 & B3 -- "REDUCER se<br/>updates merge" --> C
-```
-
-> **1 superstep = 1 step ya kai parallel steps.** Parallel nodes ke updates **reducer** se state me merge hote hain.
-
-### Sequence view: andar kya hota hai
+#### Phase 2: Execution (step by step)
+1. **Invocation:** `app.invoke(initial_state)`. Initial state **pehle node** ko jaati hai.
+2. **Activation:** wo node **activate** hota hai, yaani uska **Python function call** hota hai.
+3. Node kaam karke state pe **partial update** karta hai (sirf kuch fields).
+4. **Message passing:** updated state **edge ke through agle node** tak jaati hai.
+5. Agla node activate hota hai, wahi cycle dohrati hai.
+6. **Termination:** jab **koi active node nahi** aur **edges me koi message pass nahi ho raha**.
 
 ```mermaid
 sequenceDiagram
-    participant U as Tum (code)
-    participant G as LangGraph engine
+    participant T as Tum
+    participant G as LangGraph
     participant N1 as Node 1
     participant N2 as Node 2
-    U->>G: app.invoke(initial_state)
-    G->>N1: activate + state do
+    T->>G: invoke(initial_state)
+    G->>N1: activate + state
     N1-->>G: partial update
-    G->>G: state update + message passing
-    G->>N2: activate + updated state
+    G->>N2: message passing: updated state
     N2-->>G: partial update
-    G->>G: koi active node nahi, koi message nahi
-    G-->>U: final state (termination)
+    G-->>T: koi active node nahi: stop, final state
 ```
 
-> 🔧 Tum **manually** node 1, phir node 2 call nahi karte. Sirf **ek baar `invoke()`**, baaki message passing + superstep scheduling LangGraph khud karta hai.
+> ⚠️ Tum **manually** node 1, phir node 2 call nahi karte. Sirf **ek baar `invoke()`**, baaki sab (message passing + scheduling) LangGraph andar se karta hai.
 
-```python
-app = graph.compile()
-result = app.invoke({"topic": "", "essay_text": "", ...})   # complete hone tak chalta hai
-print(result)   # saare supersteps ke baad final state
+#### Superstep: "step" nahi, "superstep" kyun?
+- Ek **round** ko **superstep** kehte hain.
+- Kyun? Kyunki ek round me **ek se zyada nodes parallel** chal sakte hain. Agar ek node ke baad **3 parallel nodes** hain, to wo ek hi round me **3 steps ek saath** hain. Isse sirf "step" kehna sahi nahi.
+- **1 superstep = 1 step ya kai parallel steps.**
+- Parallel nodes ke updates **reducer** se state me merge hote hain.
+
+```mermaid
+flowchart LR
+    subgraph S1["Superstep 1"]
+        A["Node A"]
+    end
+    subgraph S2["Superstep 2: 3 parallel"]
+        direction TB
+        B1["B1"]
+        B2["B2"]
+        B3["B3"]
+    end
+    subgraph S3["Superstep 3"]
+        C["Node C"]
+    end
+    A -- "message passing" --> B1 & B2 & B3
+    B1 & B2 & B3 -- "reducer se merge" --> C
 ```
 
 ### Terminology
 
 | Term | Matlab |
 |---|---|
-| Graph definition | Nodes, edges, state schema declare karna |
-| Compile | Structure validate karna (jaise orphan node pakadna) |
-| Invocation | Initial state first node ko dena, execution shuru |
+| Graph definition | Nodes, edges, state declare karna |
+| Compile | Structure validate karna (orphan node pakadna) |
+| Invocation | Initial state first node ko dena |
 | Activation | Node ka Python function call hona |
-| Partial update | Node state ke **kuch** fields hi badalta hai |
-| Message passing | Updated state ko edge se agle node(s) tak bhejna |
-| Superstep | Execution ka ek round (1 ya kai parallel nodes) |
-| Termination | Koi active node nahi + edges me koi message nahi |
+| Partial update | Node state ke sirf kuch fields badalta hai |
+| Message passing | Updated state ko edge se agle node tak bhejna |
+| Superstep | Ek round (1 ya kai parallel nodes) |
+| Termination | Koi active node nahi + edges me message nahi |
+
+### 🧠 Yaad rakho
+**Define → Compile → Invoke → (activate, partial update, message passing) × supersteps → Terminate.**
 
 ---
 
-## 7. Poora video ek hi diagram me
+## 7. Poora video ek hi flow me
 
 ```mermaid
 flowchart TD
-    WF["LLM Workflow<br/>(5 patterns me se koi bhi)"] --> GR["LangGraph me Graph banao"]
-    GR --> NODES["Nodes<br/>(Python functions)"]
-    GR --> EDGES["Edges<br/>(sequential, parallel,<br/>conditional, loop)"]
-    GR --> STATE["State<br/>(TypedDict, shared + mutable)"]
-    STATE --> RED["Reducers<br/>(replace / add / merge)"]
-    NODES & EDGES & STATE --> COMP["compile()"]
-    COMP --> INV["invoke(initial_state)"]
-    INV --> SUP["Supersteps:<br/>activate - partial update -<br/>message passing"]
-    SUP --> TERM["Termination: final state"]
+    A["LLM workflow<br/>(5 patterns)"] --> B["Graph: nodes + edges"]
+    B --> C["State (TypedDict)"]
+    C --> D["Reducers<br/>(replace / add / merge)"]
+    D --> E["compile()"]
+    E --> F["invoke(initial_state)"]
+    F --> G["Supersteps:<br/>activate, partial update, message passing"]
+    G --> H["Termination: final state"]
 ```
 
 ---
@@ -648,36 +576,35 @@ flowchart TD
 
 | Term | Matlab |
 |---|---|
-| Workflow | Goal achieve karne ke liye tasks ki series |
-| LLM workflow | Jisme kai tasks LLM pe depend karte hain |
-| Prompt chaining | LLM calls ki series, beech me gate |
+| Workflow | Goal ke liye tasks ki series |
+| LLM workflow | Jisme kai tasks LLM pe depend |
+| Prompt chaining | LLM calls ki series + gate |
 | Routing | Router LLM decide kare kaun handle karega |
-| Parallelization | Fixed independent sub-tasks ek saath |
-| Orchestrator-Worker | Sub-tasks runtime pe dynamic, parallel |
+| Parallelization | Fixed sub-tasks ek saath |
+| Orchestrator-Worker | Dynamic sub-tasks, orchestrator baante |
 | Evaluator-Optimizer | Generate, evaluate, feedback loop |
-| Node | Ek task = Python function |
-| Edge | Control flow (kab kya) |
-| State | Shared, mutable, evolving data (TypedDict) |
-| Reducer | State update ka tareeka: replace, add, merge |
-| `add_messages` | Chat messages ke liye built-in append reducer |
+| Node | Ek task (Python function) |
+| Edge | Kab / agla kya (flow) |
+| State | Shared, mutable data (TypedDict) |
+| Reducer | State update ka rule: replace / add / merge |
+| `add_messages` | Chat ke liye built-in add reducer |
 | Orphan node | Kisi se connected nahi, compile pe error |
-| Superstep | Execution ka ek round (parallel nodes ho sakte hain) |
-| Pregel | Google ka graph-processing system jisse execution model inspired hai |
+| Superstep | Execution ka ek round |
+| Pregel | Google ka graph-processing system (inspiration) |
 
 ---
 
 ## 9. Self-test
 
-1. LLM workflow kise kehte hain? *(jisme kai tasks LLM pe depend karte hain)*
-2. Parallelization aur Orchestrator-Worker me ek line ka fark? *(sub-tasks pehle se fixed vs runtime pe dynamic)*
-3. Evaluator-Optimizer me loop kab rukta hai? *(jab evaluator solution accept kar le)*
-4. LangGraph me node andar se kya hota hai? *(plain Python function)*
-5. Node aur edge me fark? *(node = kya karna hai, edge = kab / agla kya)*
-6. State ki 2 khaasiyat? *(shared + mutable)*
-7. State kis se banti hai? *(TypedDict, ya Pydantic model)*
-8. Default overwrite chatbot me kyun fail hota hai? *(naya message purane ko replace karta hai, history gayab)*
-9. Chat messages ka built-in reducer? *(`add_messages`)*
-10. "Superstep" kyun, "step" kyun nahi? *(ek round me kai nodes parallel chal sakte hain)*
-11. `compile()` kya check karta hai? *(structure valid hai, jaise koi orphan node nahi)*
-12. Execution kab terminate hota hai? *(koi active node nahi + edges me koi message nahi)*
-13. Execution model kisse inspired hai? *(Google Pregel)*
+1. LLM workflow kya hai? *(jisme kai tasks LLM pe depend karte hain)*
+2. Parallelization vs Orchestrator-Worker ka ek line me fark? *(sub-tasks pehle se fixed vs runtime pe dynamic)*
+3. Evaluator-Optimizer ka loop kab rukta hai? *(evaluator accept kar le)*
+4. Node andar se kya hai? *(Python function)*
+5. State ki 2 khaasiyat? *(shared, mutable)*
+6. State kis se banti hai? *(TypedDict ya Pydantic)*
+7. Chatbot me default replace kyun fail hota hai? *(naya message purane ko mita deta hai, naam bhool jaata hai)*
+8. Chat ka built-in reducer? *(`add_messages`)*
+9. `compile()` kya check karta hai? *(structure sahi hai, orphan node nahi)*
+10. "Superstep" kyun? *(ek round me kai nodes parallel chal sakte hain)*
+11. Execution kab rukta hai? *(koi active node nahi + edges me message nahi)*
+12. Execution model kisse inspired hai? *(Google Pregel)*
